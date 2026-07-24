@@ -377,6 +377,20 @@ The function's last four statements are the grid fallback. Insert the guide quer
 
 **Priority is therefore: construction-line snap > item anchor > alignment guide > grid.** Verify by reading the function that no earlier return can be reached once an alignment guide is available but an item anchor is not — an ordinary pin/wire snap must behave exactly as before this change.
 
+**Guard the grid step's integrality (raised during Task 1).** The engine's filter accepts an offset within `1e-6 * step` of a whole multiple. Because offsets are `int` internal units, that is exactly equivalent to an integer test for every grid KiCad actually offers — the acceptance window only widens past 1 IU if a step exceeded 100 mm. But `GetGridSize()` returns a `VECTOR2D`, so a non-integral step is *representable*. If one ever arrived, no non-zero integer offset would be a whole multiple and the guides would silently stop engaging — safe, but indistinguishable from a bug. Add an assertion at this call site so the assumption is stated where it is relied upon:
+
+```cpp
+            const VECTOR2D gridStep = GetGridSize( aGrid );
+
+            // The engine's grid-legality test assumes integral steps; every KiCad grid is
+            // a whole number of IU.  A fractional step would make no non-zero offset legal
+            // and the guides would quietly never fire.
+            wxASSERT( gridStep.x == std::floor( gridStep.x )
+                      && gridStep.y == std::floor( gridStep.y ) );
+```
+
+then pass `gridStep` to `FindSnap`. Needs `<cmath>`; check before adding.
+
 - [ ] **Step 3.3: Build**
 
 ```bash
