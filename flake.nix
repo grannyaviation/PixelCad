@@ -20,10 +20,15 @@
             ccache
             gdb
             clang-tools # clangd for IDE
+            opencascade-occt # 7.9.x; kicad.base still pins 7.6.2
           ];
 
           shellHook = ''
             export CMAKE_CXX_COMPILER_LAUNCHER=ccache
+            # kicad.base (10.0.x) pins OCCT 7.6.2, but KiCad master needs 7.9's
+            # TKDEIGES/TKDESTEP.  Point FindOCC.cmake at 7.9 explicitly.
+            export OCC_INCLUDE_DIR=${pkgs.opencascade-occt}/include/opencascade
+            export OCC_LIBRARY_DIR=${pkgs.opencascade-occt}/lib
             echo "KiCad dev shell. Configure with:"
             echo "  cmake -S kicad -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
             echo "  cmake --build build"
