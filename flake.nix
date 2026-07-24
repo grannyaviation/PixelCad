@@ -75,12 +75,23 @@
             # KICAD_STOCK_DATA_HOME, which would lose translations and stock scripting
             # plugins.  Mirror the packaged data into the build root so both resolve.
             # (Schemas and 3D plugins ask for the non-build path, so they are unaffected.)
-            # Only fill gaps -- several of these names are real CMake output dirs
-            # in the build root, and those must win.
+            # Fill gaps only.  Several of these names already exist in the build root
+            # as CMake scaffolding dirs (CMakeFiles, cmake_install.cmake) rather than
+            # data, so for those merge the packaged contents in file-by-file instead
+            # of replacing the directory -- KiCad wants e.g. resources/images.tar.gz
+            # and schemas/pcm.v*.schema.json to resolve under the build root.
             if [ -d "$PWD/build" ]; then
               for _d in ${pkgs.kicad.base}/share/kicad/*; do
                 _b=$(basename "$_d")
-                [ -e "$PWD/build/$_b" ] || ln -s "$_d" "$PWD/build/$_b" 2>/dev/null || true
+                if [ ! -e "$PWD/build/$_b" ]; then
+                  ln -s "$_d" "$PWD/build/$_b" 2>/dev/null || true
+                elif [ -d "$PWD/build/$_b" ] && [ ! -L "$PWD/build/$_b" ]; then
+                  for _f in "$_d"/*; do
+                    _fb=$(basename "$_f")
+                    [ -e "$PWD/build/$_b/$_fb" ] \
+                      || ln -s "$_f" "$PWD/build/$_b/$_fb" 2>/dev/null || true
+                  done
+                fi
               done
             fi
             echo "KiCad dev shell. Configure with:"
