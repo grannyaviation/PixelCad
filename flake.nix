@@ -65,6 +65,24 @@
             # kills the app in g_settings_set_property.  Put the compiled schemas and
             # icon theme on XDG_DATA_DIRS, as the nixpkgs kicad wrapper does.
             export XDG_DATA_DIRS="${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.adwaita-icon-theme}/share:$XDG_DATA_DIRS"
+
+            # An install tree keeps every .kiface in one lib dir; a build tree puts
+            # each in its own module subdir, so the project manager cannot find them.
+            # This is KiCad's own switch for that: kiway then looks in ../<module>/.
+            export KICAD_RUN_FROM_BUILD_DIR=1
+
+            # Caveat of that switch: GetStockDataPath() prefers the build root over
+            # KICAD_STOCK_DATA_HOME, which would lose translations and stock scripting
+            # plugins.  Mirror the packaged data into the build root so both resolve.
+            # (Schemas and 3D plugins ask for the non-build path, so they are unaffected.)
+            # Only fill gaps -- several of these names are real CMake output dirs
+            # in the build root, and those must win.
+            if [ -d "$PWD/build" ]; then
+              for _d in ${pkgs.kicad.base}/share/kicad/*; do
+                _b=$(basename "$_d")
+                [ -e "$PWD/build/$_b" ] || ln -s "$_d" "$PWD/build/$_b" 2>/dev/null || true
+              done
+            fi
             echo "KiCad dev shell. Configure with:"
             echo "  cmake -S kicad -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
             echo "  cmake --build build"
