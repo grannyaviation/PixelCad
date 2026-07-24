@@ -373,8 +373,14 @@ The function's last four statements are the grid fallback. Insert the guide quer
 
         if( engine.HasInputs() )
         {
+            // pt, NOT aOrigin.  aOrigin is the raw unsnapped cursor, while
+            // OriginalCursor is the move tool's snapped running cursor, so pairing them
+            // offsets the box by the sub-grid remainder and the returned position is
+            // off-grid even though the engine's offset is a clean grid multiple --
+            // the % test constrains the offset, not the base.  pt is grid-aligned
+            // whenever canUseGrid(), so delta stays a whole number of steps.
             BOX2I movingBox = m_moveContext->OriginalBBox;
-            movingBox.Move( aOrigin - m_moveContext->OriginalCursor );
+            movingBox.Move( pt - m_moveContext->OriginalCursor );
 
             // Grid step passed so the engine only offers offsets that keep pins on the
             // wire grid; see the header note on why it rejects rather than rounds.
@@ -383,7 +389,7 @@ The function's last four statements are the grid fallback. Insert the guide quer
                 m_alignGuidePreview.SetGuides( *guide );
                 m_toolMgr->GetView()->Update( &m_alignGuidePreview, KIGFX::GEOMETRY );
 
-                return aOrigin + guide->Offset;
+                return pt + guide->Offset;   // pt, not aOrigin -- see the note above
             }
         }
     }
