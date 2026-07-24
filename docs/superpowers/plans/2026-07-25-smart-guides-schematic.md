@@ -181,7 +181,24 @@ In `FindSnap`'s definition, add the third parameter, then inside the per-axis ca
         }
 ```
 
-`<cmath>` is needed for `std::round`; check whether it is already included and add it only if not.
+**Superseded by the Task 1 review — the shipped form is integer, not floating point.** A `double` tolerance is *relative to the step*, so at PCB scale (1 nm IU, 100 mil grid = 2540000 IU) the acceptance window is 2.54 IU and off-by-1 and off-by-2 offsets are wrongly accepted — the same shape as the deleted bug, just at nanometre magnitude. The parameter is therefore `std::optional<VECTOR2I>` and the test is exact:
+
+```cpp
+            if( aGridStep )
+            {
+                const int g = ( axis == 0 ) ? aGridStep->x : aGridStep->y;
+
+                // Reject, never round: a rounded offset would leave the item off the
+                // alignment the guide line is about to claim.  Fails closed on a
+                // non-positive step, since a missed rejection means a disconnected net.
+                if( g <= 0 || c.Delta % g != 0 )
+                    continue;
+            }
+```
+
+Exact, scale-free, no epsilon to justify, and no `<cmath>` needed.
+
+Order note: the grid test may sit either side of the range test — both are `continue` in a side-effect-free loop, so they commute. Range-first is marginally cheaper. The original instruction to place it first was a vestige of the deleted design, where the operation mutated `Delta` and order genuinely mattered.
 
 - [ ] **Step 1.5: Run — all green**
 
@@ -377,19 +394,15 @@ The function's last four statements are the grid fallback. Insert the guide quer
 
 **Priority is therefore: construction-line snap > item anchor > alignment guide > grid.** Verify by reading the function that no earlier return can be reached once an alignment guide is available but an item anchor is not — an ordinary pin/wire snap must behave exactly as before this change.
 
-**Guard the grid step's integrality (raised during Task 1).** The engine's filter accepts an offset within `1e-6 * step` of a whole multiple. Because offsets are `int` internal units, that is exactly equivalent to an integer test for every grid KiCad actually offers — the acceptance window only widens past 1 IU if a step exceeded 100 mm. But `GetGridSize()` returns a `VECTOR2D`, so a non-integral step is *representable*. If one ever arrived, no non-zero integer offset would be a whole multiple and the guides would silently stop engaging — safe, but indistinguishable from a bug. Add an assertion at this call site so the assumption is stated where it is relied upon:
+**Converting the grid step (corrected after the Task 1 review).** `FindSnap` takes `std::optional<VECTOR2I>` — an integer step, tested with `%`. `GetGridSize()` returns a `VECTOR2D`, so convert at this boundary:
 
 ```cpp
-            const VECTOR2D gridStep = GetGridSize( aGrid );
-
-            // The engine's grid-legality test assumes integral steps; every KiCad grid is
-            // a whole number of IU.  A fractional step would make no non-zero offset legal
-            // and the guides would quietly never fire.
-            wxASSERT( gridStep.x == std::floor( gridStep.x )
-                      && gridStep.y == std::floor( gridStep.y ) );
+            const VECTOR2I gridStep = KiROUND( GetGridSize( aGrid ) );
 ```
 
-then pass `gridStep` to `FindSnap`. Needs `<cmath>`; check before adding.
+then pass `gridStep` to `FindSnap`.
+
+An earlier draft of this step asserted that the step was integral. **Do not add that assertion** — `GRID::ToDouble()` (`common/settings/grid_settings.cpp:53`) parses a user-typed string, and eeschema exposes custom grids, so a fractional step is a legitimate user configuration (a 0.1 mil grid is 25.4 IU at schematic scale). The assertion would fire on valid input. Rounding at the boundary is the honest handling: positions are integers, so the grid a snap can actually honour is the rounded one.
 
 - [ ] **Step 3.3: Build**
 
