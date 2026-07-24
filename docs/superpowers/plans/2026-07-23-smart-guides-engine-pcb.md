@@ -17,11 +17,12 @@
 - "Midpoint between neighbors" is implemented as equal-gap-between-edges (gap left == gap right), which is what Figma actually shows, rather than center-of-centers.
 - Badges display mm fixed in v1 (`ponytail:` comment marks the units-provider upgrade path).
 - Center-in-area containers = board outline only in v1; "any item whose bbox encloses the cursor" (spec) is a follow-up — it needs an enclosure query per drag that the outline case doesn't.
+- **`aGrid`/grid quantization dropped from this plan (decided after Task 1 review).** The spec's schematic rule ("guide candidates are quantized to the active grid first, so pins never leave the wire grid") still stands, but it belongs to the schematic/symbol plan, where it will have a real caller to design against. Quantizing the *delta*, as originally drafted here, was wrong in a way tests would not have caught: it rewrote each candidate's delta before the range test, so any candidate nearer than half a grid step collapsed to `0`, and `|0|` outranked every genuine candidate — yielding a reported "snap" with zero offset and a guide line aligned to nothing, while also bypassing the caller's grid fallback. The schematic plan should quantize the *target position* and reject candidates that then fall outside the snap range, not mangle deltas. Task 6 is removed accordingly.
 
 **Conventions:**
 - World units are nm (`pcbIUScale.IU_PER_MM = 1e6`). Y grows downward; `BOX2I::GetTop()` is min-Y.
 - Commit messages: plain imperative (KiCad style), each ending with:
-  `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`
+  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
 - Run all commands from `/home/asqude/projecte/PixelCad` unless stated.
 
 ---
@@ -439,7 +440,7 @@ git -C kicad commit -m "Add alignment guide engine with edge/center alignment sn
 Pure-geometry engine for Figma-style smart guides: computes snap offsets
 and guide graphics for a moving bbox against neighbor bboxes.
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -531,7 +532,7 @@ Expected: `*** No errors detected`. If a case fails, fix `collectAxisCandidates`
 git -C kicad add qa/tests/common/test_alignment_guide_engine.cpp common/tool/alignment_guide_engine.cpp
 git -C kicad commit -m "Add alignment guide engine tests for axes, centers and tie-breaking
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -556,9 +557,16 @@ Task 1's `buildGraphics()` guesses which edge aligned by comparing coordinates:
             ord = ms.Center();
 ```
 
-That picks the wrong ordinate whenever a center-align wins while an edge coincidentally
-matches a neighbor edge. The candidate already knows the answer at collection time, so
-record it. In the header, add a field to `SNAP_CANDIDATE`:
+This currently produces the *right* answer — the chain compares only against the winner's
+own neighbor, and push order plus the strict `<` in the nearest-wins comparison mean an
+edge match would have won outright — so it is not a live bug. Replace it anyway, for two
+reasons: its correctness rests on an undocumented coupling between push order in
+`collectAxisCandidates` and an inequality in `FindSnap` (one `<=` typo silently changes
+rendering), and the guessing chain gets strictly worse as Tasks 3–5 add kinds whose
+post-snap box need not align with anything.
+
+The candidate already knows the answer at collection time, so record it. In the header,
+add a field to `SNAP_CANDIDATE`:
 
 ```cpp
         int    Ord;    ///< Guide ordinate along the axis (KIND_ALIGN), in post-snap coords
@@ -743,7 +751,7 @@ nix develop -c cmake --build build --target qa_common && \
 git -C kicad add common/tool/alignment_guide_engine.cpp qa/tests/common/test_alignment_guide_engine.cpp
 git -C kicad commit -m "Add equal-spacing snap candidates and gap badges to guide engine
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -832,7 +840,7 @@ acceptable, keep it mechanical.)
 git -C kicad add common/tool/alignment_guide_engine.cpp qa/tests/common/test_alignment_guide_engine.cpp
 git -C kicad commit -m "Add center-between-neighbors snapping to guide engine
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -899,78 +907,26 @@ In `buildGraphics()`:
 git -C kicad add common/tool/alignment_guide_engine.cpp qa/tests/common/test_alignment_guide_engine.cpp
 git -C kicad commit -m "Add center-in-container snapping to guide engine
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 6: Grid quantization (schematic-safe offsets)
+### Task 6: REMOVED — grid quantization dropped from this plan
 
-**Files:**
-- Modify: `kicad/qa/tests/common/test_alignment_guide_engine.cpp`
-- Modify: `kicad/common/tool/alignment_guide_engine.cpp` (only on failure)
+Deleted after the Task 1 code-quality review. `aGrid` had no caller anywhere in this plan
+(Task 9 calls `FindSnap( movingBox, snapRange )`), and its delta-quantization semantics
+were actively wrong — see the deviations note in the header for the full failure mode.
+The tests originally drafted here would have passed over that bug: `GridQuantizedOffset`
+asserted only `Offset.x % 25 == 0`, which the phantom zero-offset "snap" satisfies, and
+`GridQuantizationCanKillSnap` wrapped its assertion in `if( result )`.
 
-The quantization logic already landed in Task 1's `FindSnap` (the `aGrid` branch); this task **fixes a latent bug in it** and locks the behavior in with tests.
+The `aGrid` parameter and its quantization block are removed from the engine in the Task 1
+follow-up fix commit. The spec's schematic grid requirement moves to the schematic/symbol
+plan, to be designed against a real caller (quantize the target *position*, reject
+candidates that then fall outside the snap range).
 
-- [ ] **Step 6.0: Fix the quantization formula**
-
-Task 1 shipped:
-
-```cpp
-                    c.Delta = KiROUND( c.Delta / g ) * KiROUND( g );
-```
-
-That rounds the *grid step* before multiplying, so a non-integer grid moves the item off
-the very grid it is meant to preserve (g = 2.5, Delta = 5 → `2 * 3` = 6, not 5) and can
-push a valid snap out of range. Round once, at the end:
-
-```cpp
-                    c.Delta = KiROUND( KiROUND( c.Delta / g ) * g );
-```
-
-- [ ] **Step 6.1: Write the tests**
-
-```cpp
-BOOST_AUTO_TEST_CASE( GridQuantizedOffset )
-{
-    ALIGNMENT_GUIDE_ENGINE engine;
-    engine.SetNeighbors( { BOX2I( VECTOR2I( 0, 0 ), VECTOR2I( 100, 50 ) ) } );
-
-    // Left edges align with delta -3; grid 25 quantizes -3 -> 0: still a snap,
-    // but the offset must be a grid multiple.
-    BOX2I moving( VECTOR2I( 3, 500 ), VECTOR2I( 40, 20 ) );
-
-    auto result = engine.FindSnap( moving, 10, VECTOR2D( 25, 25 ) );
-
-    BOOST_REQUIRE( result.has_value() );
-    BOOST_CHECK_EQUAL( result->Offset.x % 25, 0 );
-}
-
-
-BOOST_AUTO_TEST_CASE( GridQuantizationCanKillSnap )
-{
-    ALIGNMENT_GUIDE_ENGINE engine;
-    engine.SetNeighbors( { BOX2I( VECTOR2I( 0, 0 ), VECTOR2I( 100, 50 ) ) } );
-
-    // Delta -12 with grid 100: quantizes to 0 or -100, |quantized| respects range
-    // rules -> -12 quantizes to 0 (allowed, no-op) rather than jumping to -100.
-    BOX2I moving( VECTOR2I( 12, 500 ), VECTOR2I( 40, 20 ) );
-
-    auto result = engine.FindSnap( moving, 15, VECTOR2D( 100, 100 ) );
-
-    if( result )
-        BOOST_CHECK_EQUAL( result->Offset.x, 0 );
-}
-```
-
-- [ ] **Step 6.2: Run — fix `FindSnap` if either fails.  Step 6.3: Commit**
-
-```bash
-git -C kicad add qa/tests/common/test_alignment_guide_engine.cpp common/tool/alignment_guide_engine.cpp
-git -C kicad commit -m "Test grid quantization of alignment guide offsets
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
-```
+Renumbering is deliberately avoided — later tasks keep their original numbers.
 
 ---
 
@@ -1143,7 +1099,7 @@ git -C kicad add include/preview_items/alignment_guide_geom.h \
   common/preview_items/alignment_guide_geom.cpp common/CMakeLists.txt
 git -C kicad commit -m "Add preview item rendering alignment guides, badges and center marks
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -1233,7 +1189,7 @@ git -C kicad add include/tool/construction_manager.h include/tool/grid_helper.h 
   common/tool/grid_helper.cpp common/tool/construction_manager.cpp
 git -C kicad commit -m "Wire alignment guide engine and preview into grid helper plumbing
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -1350,7 +1306,7 @@ The method computes `snapRange` (line ~615), collects anchors, then chooses betw
     {
         ALIGNMENT_GUIDE_ENGINE& engine = getSnapManager().GetAlignmentEngine();
 
-        if( engine.HasCandidates() )
+        if( engine.HasInputs() )
         {
             // Moving bbox at the current (unsnapped) cursor position
             BOX2I movingBox = m_moveContext->OriginalBBox;
@@ -1396,7 +1352,7 @@ git -C kicad commit -m "Offer alignment guide snaps in PCB grid helper during mo
 Priority is item anchor, then alignment guide, then grid.  Neighbors are
 footprints on the dragged side, capped to the 100 nearest.
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -1478,7 +1434,7 @@ Record pass/fail per item. Failures → fix before commit; rendering issues trac
 git -C kicad add pcbnew/tools/edit_tool_move_fct.cpp
 git -C kicad commit -m "Enable smart alignment guides in the PCB move tool
 
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
