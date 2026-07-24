@@ -477,30 +477,7 @@ Extend it, inside the `if`, after `refreshTraits();`:
                 grid.CollectAlignmentNeighbors( selection );
 ```
 
-**Groups must be expanded into the skip set (found during Task 2).** Selecting an item inside a group selects the `SCH_GROUP`, not the member symbols — but the view still returns those members, so `queryVisible()`'s pointer-based skip misses them and a group drag would align to its own contents. Before calling `CollectAlignmentNeighbors`, build a skip selection that includes group children:
-
-```cpp
-                SCH_SELECTION guideSkip = selection;
-
-                for( EDA_ITEM* item : selection )
-                {
-                    if( item->Type() == SCH_GROUP_T )
-                    {
-                        static_cast<SCH_GROUP*>( item )->RunOnChildren(
-                                [&]( SCH_ITEM* aChild )
-                                {
-                                    guideSkip.Add( aChild );
-                                },
-                                RECURSE_MODE::RECURSE );
-                    }
-                }
-
-                grid.CollectAlignmentNeighbors( guideSkip );
-```
-
-`RECURSE_MODE` is declared in `include/eda_item.h:47` with values `RECURSE` / `NO_RECURSE`; `SCH_GROUP::RunOnChildren` is at `eeschema/sch_group.h:156`. Use `RECURSE` so nested groups are covered. Verify `SCH_SELECTION::Add` is the right call for appending, and include `<sch_group.h>` if absent.
-
-The same latent issue likely exists in the PCB port (`PCB_GROUP`); record it but do not fix it here — it is out of scope for this plan.
+**Group handling needs nothing here — it is fixed upstream in `queryVisible()`.** An earlier draft of this step expanded groups into the skip set at this call site. That was the wrong layer: `queryVisible()` erases the skip list *by pointer*, so members of a dragged `SCH_GROUP` survive, and every caller that builds a skip list would have to repeat the expansion. It is also not a new bug — `BestSnapAnchor` calls the same `queryVisible` with the same skip list, so dragging a group can already snap it to its own members' anchors on current KiCad. The fix is one line in `queryVisible`'s filter loop (see the Task 2 follow-up), which closes it for every caller at once. Pass `selection` directly.
 
 **Why `prevPos`:** Plan 1 hit exactly this. Pairing the bbox with a cursor value the items have not yet moved to offsets every guide for the whole drag by one event's movement — invisible on a slow drag, obvious on a fast flick. `prevPos` was just assigned `m_cursor` on the line above, so at this instant they are equal; using `prevPos` states the intent and stays correct if the surrounding code changes.
 
