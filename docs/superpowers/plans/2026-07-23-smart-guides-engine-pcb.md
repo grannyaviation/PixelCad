@@ -138,7 +138,11 @@ public:
 
 private:
     /// One potential snap position along one axis
-    struct CANDIDATE
+    ///
+    /// NOTE: named SNAP_CANDIDATE, not CANDIDATE — `include/eda_item_flags.h:46`
+    /// defines a `CANDIDATE` macro that leaks in through the include chain and
+    /// breaks compilation.  (Found during Task 1 implementation.)
+    struct SNAP_CANDIDATE
     {
         int    Delta;  ///< Offset along the axis to reach this candidate
         int    Kind;   ///< KIND_* — drives which guide graphics get built
@@ -155,9 +159,9 @@ private:
     };
 
     void collectAxisCandidates( const BOX2I& aMoving, int aAxis,
-                                std::vector<CANDIDATE>& aOut ) const;
+                                std::vector<SNAP_CANDIDATE>& aOut ) const;
 
-    void buildGraphics( const BOX2I& aSnapped, int aAxis, const CANDIDATE& aWinner,
+    void buildGraphics( const BOX2I& aSnapped, int aAxis, const SNAP_CANDIDATE& aWinner,
                         RESULT& aResult ) const;
 
     std::vector<BOX2I> m_neighbors;
@@ -535,8 +539,52 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ### Task 3: Equal-spacing candidates (a→b = b→c) + badges
 
 **Files:**
+- Modify: `kicad/include/tool/alignment_guide_engine.h`
 - Modify: `kicad/common/tool/alignment_guide_engine.cpp`
 - Modify: `kicad/qa/tests/common/test_alignment_guide_engine.cpp`
+
+- [ ] **Step 3.0: Record the guide ordinate instead of reverse-engineering it**
+
+Task 1's `buildGraphics()` guesses which edge aligned by comparing coordinates:
+
+```cpp
+        if( ms.Min == ns.Min || ms.Min == ns.Max )
+            ord = ms.Min;
+        else if( ms.Max == ns.Min || ms.Max == ns.Max )
+            ord = ms.Max;
+        else
+            ord = ms.Center();
+```
+
+That picks the wrong ordinate whenever a center-align wins while an edge coincidentally
+matches a neighbor edge. The candidate already knows the answer at collection time, so
+record it. In the header, add a field to `SNAP_CANDIDATE`:
+
+```cpp
+        int    Ord;    ///< Guide ordinate along the axis (KIND_ALIGN), in post-snap coords
+```
+
+In `collectAxisCandidates()`, set it on each alignment push (the ordinate is the
+*neighbor's* edge/center, which is where the guide line lands after snapping):
+
+```cpp
+        aOut.push_back( { ns.Min - ms.Min, KIND_ALIGN, i, i, ns.Min } );
+        aOut.push_back( { ns.Max - ms.Min, KIND_ALIGN, i, i, ns.Max } );
+        aOut.push_back( { ns.Min - ms.Max, KIND_ALIGN, i, i, ns.Min } );
+        aOut.push_back( { ns.Max - ms.Max, KIND_ALIGN, i, i, ns.Max } );
+        aOut.push_back( { ns.Center() - ms.Center(), KIND_ALIGN, i, i, ns.Center() } );
+```
+
+Then replace the guessing chain in `buildGraphics()` with `const int ord = aWinner.Ord;`
+and delete the now-unused `ns` local. Every other `aOut.push_back` in the file must gain
+a fifth initializer (use `0` for kinds that draw no alignment line).
+
+Existing tests must stay green — run them before moving on:
+
+```bash
+nix develop -c cmake --build build --target qa_common && \
+  nix develop -c ./build/qa/tests/common/qa_common --run_test="AlignmentGuideEngine/*" -l message
+```
 
 - [ ] **Step 3.1: Write the failing tests**
 
@@ -627,10 +675,10 @@ Append to `collectAxisCandidates()` after the alignment loop:
             continue; // overlapping neighbors: no meaningful gap
 
         // Moving box after j with the same gap: moving.Min = j.Max + gap
-        aOut.push_back( { ( sj.Max + gap ) - ms.Min, KIND_EQUAL_GAP, i, j } );
+        aOut.push_back( { ( sj.Max + gap ) - ms.Min, KIND_EQUAL_GAP, i, j, 0 } );
 
         // Moving box before i with the same gap: moving.Max = i.Min - gap
-        aOut.push_back( { ( si.Min - gap ) - ms.Max, KIND_EQUAL_GAP, j, i } );
+        aOut.push_back( { ( si.Min - gap ) - ms.Max, KIND_EQUAL_GAP, j, i, 0 } );
     }
 ```
 
@@ -741,7 +789,7 @@ In `collectAxisCandidates()`, inside the adjacent-pair loop from Task 3 (after t
         if( gap >= ms.Size() )
         {
             const int targetMin = si.Max + ( gap - ms.Size() ) / 2;
-            aOut.push_back( { targetMin - ms.Min, KIND_BETWEEN, i, j } );
+            aOut.push_back( { targetMin - ms.Min, KIND_BETWEEN, i, j, 0 } );
         }
 ```
 
@@ -827,7 +875,7 @@ In `collectAxisCandidates()`, append:
     for( size_t i = 0; i < m_containers.size(); ++i )
     {
         const SPAN cs = spanOf( m_containers[i], aAxis );
-        aOut.push_back( { cs.Center() - ms.Center(), KIND_CONTAINER, i, i } );
+        aOut.push_back( { cs.Center() - ms.Center(), KIND_CONTAINER, i, i, 0 } );
     }
 ```
 
@@ -862,7 +910,23 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Modify: `kicad/qa/tests/common/test_alignment_guide_engine.cpp`
 - Modify: `kicad/common/tool/alignment_guide_engine.cpp` (only on failure)
 
-The quantization logic already landed in Task 1's `FindSnap` (the `aGrid` branch); this task locks it in with tests.
+The quantization logic already landed in Task 1's `FindSnap` (the `aGrid` branch); this task **fixes a latent bug in it** and locks the behavior in with tests.
+
+- [ ] **Step 6.0: Fix the quantization formula**
+
+Task 1 shipped:
+
+```cpp
+                    c.Delta = KiROUND( c.Delta / g ) * KiROUND( g );
+```
+
+That rounds the *grid step* before multiplying, so a non-integer grid moves the item off
+the very grid it is meant to preserve (g = 2.5, Delta = 5 → `2 * 3` = 6, not 5) and can
+push a valid snap out of range. Round once, at the end:
+
+```cpp
+                    c.Delta = KiROUND( KiROUND( c.Delta / g ) * g );
+```
 
 - [ ] **Step 6.1: Write the tests**
 
