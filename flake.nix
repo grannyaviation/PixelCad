@@ -35,6 +35,9 @@
             gdb
             clang-tools # clangd for IDE
             opencascade-occt # 7.9.x; kicad.base still pins 7.6.2
+            glib # gsettings, for checking the schema path below
+            gsettings-desktop-schemas
+            adwaita-icon-theme
           ];
 
           shellHook = ''
@@ -56,6 +59,12 @@
             export KICAD10_FOOTPRINT_DIR=${pkgs.kicad.libraries.footprints}/share/kicad/footprints
             export KICAD10_3DMODEL_DIR=${pkgs.kicad.libraries.packages3d}/share/kicad/3dmodels
             export KICAD10_TEMPLATE_DIR=${templateDir}
+
+            # GTK's file chooser reads GSettings, and GLib *aborts* (not warns) when
+            # a schema is missing -- so opening any file dialog from a bare dev shell
+            # kills the app in g_settings_set_property.  Put the compiled schemas and
+            # icon theme on XDG_DATA_DIRS, as the nixpkgs kicad wrapper does.
+            export XDG_DATA_DIRS="${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.adwaita-icon-theme}/share:$XDG_DATA_DIRS"
             echo "KiCad dev shell. Configure with:"
             echo "  cmake -S kicad -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
             echo "  cmake --build build"
