@@ -44,7 +44,7 @@ No new files. Every unit already exists; this plan connects them.
 ## Facts already established (do not re-derive)
 
 - `EE_GRID_HELPER::BestSnapAnchor( const VECTOR2I& aOrigin, GRID_HELPER_GRIDS aGrid, const SCH_SELECTION& aSkip )` — `eeschema/tools/ee_grid_helper.cpp:149`
-- Its snap radius is **fixed**: `constexpr int snapRange = SNAP_RANGE * schIUScale.IU_PER_MILS;` with `SNAP_RANGE 55` (`eeschema/default_values.h:83`). 55 mil against a 50 mil grid means exactly one grid step is reachable — deliberate and correct here.
+- Its snap radius is **fixed**: `constexpr int snapRange = SNAP_RANGE * schIUScale.IU_PER_MILS;` with `SNAP_RANGE 55` (`eeschema/default_values.h:83`) = 13970 IU. **This is the wrong knob for guides** — see the guide-range decision below.
 - Its final grid fallback is the last four statements: `m_snapItem = std::nullopt;` → `if( canUseGrid() && !gridChecked ) pt = nearestGrid;` → `snapLineManager.SetSnapLineEnd( std::nullopt );` → `m_toolMgr->GetView()->SetVisible( &m_viewSnapPoint, false );` → `return pt;`
 - `EE_GRID_HELPER( TOOL_MANAGER* )` calls `GRID_HELPER( aToolMgr, LAYER_SCHEMATIC_ANCHOR )`, so **`m_alignGuidePreview` is already added to the view** — no registration work needed.
 - `queryVisible( const BOX2I&, const SCH_SELECTION& ) const` returns `std::set<SCH_ITEM*>` — `ee_grid_helper.cpp:306`
@@ -397,6 +397,27 @@ The function's last four statements are the grid fallback. Insert the guide quer
     return pt;
 }
 ```
+
+**Guide range must not reuse `snapRange` (decided after the Task 3 review).** Because the engine only accepts whole-grid-step offsets, the *effective* reach is `floor( range / gridStep )` steps:
+
+| grid | steps reachable with `snapRange` = 13970 IU |
+|---|---|
+| 10 mil | ±5 |
+| 25 mil | ±2 |
+| 50 mil | ±1 |
+| **100 mil** | **0 — only an already-aligned symbol matches** |
+
+100 mil is a common symbol-placement grid, so the feature would be silently dead there — and the relationship is backwards: a coarser grid means coarser mouse motion and wants a *larger* catch radius, not none. `SNAP_RANGE` exists to tune pin/wire anchor snapping and should not double as guide grabbiness. Use a guide range of at least two grid steps:
+
+```cpp
+            // At least +/-2 grid steps, whatever the grid.  Reusing snapRange alone would
+            // make the feature unreachable on a 100 mil grid, since the engine only accepts
+            // whole-step offsets and 55 mil is less than one step.
+            const int guideRange = std::max( snapRange,
+                                             2 * KiROUND( std::max( gridSize.x, gridSize.y ) ) );
+```
+
+and pass `guideRange` to `FindSnap` instead of `snapRange`. The anchor snap keeps using `snapRange` untouched.
 
 **Priority is therefore: construction-line snap > item anchor > alignment guide > grid.** Verify by reading the function that no earlier return can be reached once an alignment guide is available but an item anchor is not — an ordinary pin/wire snap must behave exactly as before this change.
 
