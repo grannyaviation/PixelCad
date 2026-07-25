@@ -73,29 +73,23 @@
 
             # Caveat of that switch: GetStockDataPath() prefers the build root over
             # KICAD_STOCK_DATA_HOME, which would lose translations and stock scripting
-            # plugins.  Mirror the packaged data into the build root so both resolve.
-            # (Schemas and 3D plugins ask for the non-build path, so they are unaffected.)
-            # Fill gaps only.  Several of these names already exist in the build root
-            # as CMake scaffolding dirs (CMakeFiles, cmake_install.cmake) rather than
-            # data, so for those merge the packaged contents in file-by-file instead
-            # of replacing the directory -- KiCad wants e.g. resources/images.tar.gz
-            # and schemas/pcm.v*.schema.json to resolve under the build root.
-            if [ -d "$PWD/build" ]; then
-              for _d in ${pkgs.kicad.base}/share/kicad/*; do
-                _b=$(basename "$_d")
-                if [ ! -e "$PWD/build/$_b" ]; then
-                  ln -s "$_d" "$PWD/build/$_b" 2>/dev/null || true
-                elif [ -d "$PWD/build/$_b" ] && [ ! -L "$PWD/build/$_b" ]; then
-                  for _f in "$_d"/*; do
-                    _fb=$(basename "$_f")
-                    [ -e "$PWD/build/$_b/$_fb" ] \
-                      || ln -s "$_f" "$PWD/build/$_b/$_fb" 2>/dev/null || true
-                  done
-                fi
-              done
-            fi
-            echo "KiCad dev shell. Configure with:"
-            echo "  cmake -S kicad -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+            # plugins, so the packaged data has to be mirrored into the build root.
+            #
+            # Deliberately NOT done here.  A shell hook runs before every build and
+            # cannot know whether CMake has yet written the files it owns: the build
+            # generates schemas/api.v1.schema.json, and the packaged tree contains that
+            # name too.  Staging first puts a store symlink exactly where CMake is about
+            # to write, and the build dies on "Read-only file system" -- and because
+            # `cp -r` copies the store's read-only directory modes, the staged tree
+            # cannot even be cleaned up without a chmod first.  ./run-kicad.sh stages it
+            # after the build, which is the only point where the two cannot collide.
+            export KICAD_PACKAGED_DATA=${pkgs.kicad.base}/share/kicad
+
+            echo "KiCad dev shell.  Run ./run-kicad.sh to launch.  Configure with:"
+            # FindOCC.cmake uses find_path(), which does not read an env var of the same
+            # name, so OCC_INCLUDE_DIR has to be passed on the command line.
+            echo "  cmake -S kicad -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \\"
+            echo "    -DOCC_INCLUDE_DIR=\"\$OCC_INCLUDE_DIR\" -DOCC_LIBRARY_DIR=\"\$OCC_LIBRARY_DIR\""
             echo "  cmake --build build"
           '';
         };

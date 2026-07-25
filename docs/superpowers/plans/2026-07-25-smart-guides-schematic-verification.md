@@ -6,7 +6,7 @@ Everything automatable passes. What remains needs a human dragging symbols.
 
 ```bash
 cd /home/asqude/projecte/PixelCad && direnv reload   # or: nix develop
-nix develop -c ./build/kicad/kicad kicad/demos/cm5_minima/CM5_MINIMA_3.kicad_pro
+nix develop -c ./run-kicad.sh kicad/demos/cm5_minima/CM5_MINIMA_3.kicad_pro
 ```
 
 Open the schematic. Your two `ComputeModule5-CM5` symbols are the ideal test pair —
