@@ -38,6 +38,9 @@ identical symbols, so exact alignment between them **is** a whole number of grid
 8. After any guide snap, confirm pins still land on grid and **wires stay connected**.
    Nothing should ever sit between grid points. This is the whole reason guides reject
    rather than round.
+8b. **Hierarchical sheets.** The big labelled boxes align to each other and to components,
+    measured by the drawn rectangle — guides must sit on the border, not on the sheet name
+    above it or the file name below it.
 9. Aligning two **different** symbols often won't engage at all. That is designed
    behaviour, not a bug — exact alignment there would land off-grid, and silence is
    preferred to a guide line that lies.
