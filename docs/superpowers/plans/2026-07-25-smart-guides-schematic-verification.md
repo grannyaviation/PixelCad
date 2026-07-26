@@ -49,6 +49,28 @@ identical symbols, so exact alignment between them **is** a whole number of grid
    behaviour, not a bug — exact alignment there would land off-grid, and silence is
    preferred to a guide line that lies.
 
+## Off-grid warning
+
+An amber circled `!` at the top-right of an item you are moving means one of its connection
+points does not sit on the current grid. Only during a move/drag; it never shows at rest.
+
+9b. **It fires on the part that caused your original bug.** Set the grid to 100 mil and move
+    a symbol whose pin pitch is 50 mil → `!` for the whole drag, on every grid-legal
+    position. This is the same condition that makes equal-spacing snapping refuse to
+    engage, so the `!` is the visible half of check 9.
+9c. **It clears when the problem clears.** Move a symbol that was merely *placed* off grid
+    (a file made on a different grid) → the `!` shows at grab and disappears as soon as the
+    first motion snaps it onto the grid. A `!` that survives a correct placement is a bug.
+9d. **Switch the grid to 50 mil and repeat 9b** → no `!`. The check reads the grid you are
+    actually on, not a fixed one.
+9e. **Noise check — this is the one most likely to need changing.** A `drag` (`G`) hauls
+    every connected wire into the selection, and a wire's endpoint sits on the off-grid pin,
+    so you may get a cluster of `!` glyphs — one for the symbol and one per wire — instead of
+    one. Each is truthful, but if it reads as clutter, say so: the fix is to skip items the
+    drag added by itself, which the move tool already tracks in `m_dragAdditions`.
+9f. **Notes lines and graphics never warn**, whatever their coordinates. They connect to
+    nothing.
+
 ## Lifecycle
 
 10. **Rotate mid-drag.** Press `R` while dragging → guides re-align to the rotated body

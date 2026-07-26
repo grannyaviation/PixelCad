@@ -118,6 +118,24 @@ each was invisible to the test suite.
     the working grid. This is designed behaviour — the alternative is a badge claiming an
     equality the grid refused.
 
+### The off-grid warning
+
+An amber circled `!` at the top-right of an item you are moving means one of its connection
+points misses the current grid. Only during a move; never at rest. This is the editor where an
+off-grid pin gets *created*, so it matters more here than in the schematic.
+
+16a. **Drag a pin to a position the grid allows** → no `!`. Then set the grid to 100 mil and
+     drag a pin that ends up on a 50 mil coordinate — which needs a 25 or 50 mil grid to reach
+     — → `!` for as long as it is there.
+16b. **The glyph is legible and constant on screen.** Zoom right in and right out; the circle
+     and the `!` must stay the same size, like the badges. This is the third piece of overlay
+     text in this feature and the previous two both shipped invisible.
+16c. **It must be distinguishable from a guide.** Amber circle, not red dashes. If it reads as
+     "these line up" rather than "this cannot line up", the colour is wrong.
+16d. **Shapes and text never warn**, whatever their coordinates — a graphic connects to
+     nothing. Only pins do here.
+16e. **Nothing left behind.** After `Esc` and after a normal drop, no `!` remains.
+
 ---
 
 ## Part 5 — lifecycle and teardown
