@@ -20,30 +20,53 @@ container/centring semantics.
 |---|---|---|
 | Where does the logo live | On the schematic, as `SCH_BITMAP` | One page only. Not sheet 2, not the PCB. The Drawing Sheet Editor is untouched. |
 | Do separator lines and symbols see each other | No — lines align to the sheet and to other lines; symbols behave exactly as today | No new guides on any symbol drag. Enforced structurally, by rule selection, not by filtering. |
-| May these snaps land off grid | No | A logo lands within half a graphics-grid step of the cell centre, not exactly on it. |
+| May these snaps land off grid | Yes, and only for a graphics-only selection | A logo lands exactly on the cell centre. Symbols, pins, wires and sheets are untouched. |
 | How much of the title block is understood | The cell under the cursor, derived from the drawn segments | Works with any custom `.kicad_wks`, not just KiCad's default. |
 
-### On "perfectly centred"
+### On grid legality
 
-The request was a logo *perfectly* centred. Grid-legal snapping cannot deliver that: title-block
-cells sit at coordinates like 5.5 mm from the page corner, which is not a whole step of any
-sensible schematic grid. The snap therefore lands at the nearest grid position to the cell
-centre — up to 0.635 mm off on a 50 mil grid.
+Title-block cells sit at coordinates like 5.5 mm from the page corner, which is not a whole step
+of any schematic grid. Grid-legal snapping would land at the nearest grid position to the cell
+centre instead — and the user works at 100 mil (2.54 mm) always, so that is an error of up to
+**1.27 mm**. KiCad's default title-block rows are 3 to 4 mm tall. A 1.27 mm vertical error in a
+3 mm row puts the logo hard against an edge. Grid-legal snapping does not deliver this feature
+at all at that grid pitch.
 
-This is a deliberate choice, not an oversight. Two things make it acceptable:
+So a graphics-only selection is exempt from the whole-grid-step rule. The justification is the
+same one that created the rule: grid legality exists so that **pins land on the wire grid**. A
+bitmap has no pins. A graphic line connects to nothing. Nothing electrical depends on where
+either of them sits, and `SCH_SHAPE`, `SCH_BITMAP` and non-connectable `SCH_LINE` are precisely
+the item types that carry no connection points.
 
-- The engine already handles it. `alignment_guide_engine.cpp` pushes an exact `KIND_CONTAINER`
-  candidate and then a grid-rounded fallback immediately after it (`push` / `pushRounded`,
-  around line 207). Choosing grid-legal means **no engine change is required at all**.
-- KiCad's grids are per item class. A graphics-grid override (Preferences → Grids) of 5 mil puts
-  the logo within 0.06 mm of centre while wires stay on 100 mil. That is the practical route to
-  a visually perfect result without weakening grid discipline anywhere it matters.
+Consistency this preserves:
 
-If the residual offset turns out to be visible in practice, the escape hatch is narrow and
-already designed for: `computeAlignmentGuideSnap` takes `aGridStep` as
-`std::optional<VECTOR2I>`, so passing `std::nullopt` for a graphics-only selection relaxes the
-rule for exactly the items that connect to nothing. That is a one-line change, deliberately not
-being made now.
+- Symbols, pins, wires, labels and sheets keep rejecting off-grid guide snaps exactly as today.
+  The exemption is keyed on the same graphics-only test that selects the box rule, so a mixed
+  selection containing anything connectable falls back to the strict path.
+- The off-grid `!` warning stays silent on these items — `EE_GRID_HELPER::IsOffGrid` reads
+  connection points and gates on `IsConnectable()`, both of which exclude bitmaps and graphic
+  lines. Verified, and the notes-line case in `EEGridHelperTest::OffGridDetection` already
+  covers it. The two features do not contradict each other.
+- The user never has to change a grid setting. 100 mil stays correct for everything it governs.
+
+**Where the exemption is applied — precisely.** `computeAlignmentGuideSnap` takes `aGridStep` as
+`std::optional<VECTOR2I>` already, so this is a matter of passing `std::nullopt`. Two call sites
+in `ee_grid_helper.cpp`:
+
+- `BestSnapAnchor`, around line 226 (the move path)
+- `AlignPointToGuides`, around line 447 (the resize/endpoint path)
+
+Only the `gridStep` argument changes. The **position** argument must stay
+`canUseGrid() ? nearestGrid : aOrigin` exactly as it is. The comment above that line explains
+why: extrapolating the moving box from a raw cursor while the grid is on pairs a snapped origin
+with an unsnapped current point, which lands the selection half a grid step off in a way the
+offset cannot undo. The change is "stop requiring the offset to be a whole number of steps", not
+"stop snapping the cursor to the grid". Getting this wrong produces a drag that jitters rather
+than an obvious failure.
+
+This needs a `bool m_graphicsMode` on `EE_GRID_HELPER`, set by `CollectAlignmentNeighbors` when
+it picks the graphics rule and cleared in `ClearMoveContext()` and `FullReset()` alongside the
+cached segments. A stale flag would exempt the *next* drag, which might be a symbol.
 
 ## Architecture
 
@@ -223,7 +246,13 @@ the tool event loop is hand-checked. New checklist entries go in
 
 - a logo carried across the page picks up the cell it is *currently* over, not the one it
   started in — the defect part 4 exists to prevent
-- the residual grid offset is visible and expected; `≈` on any badge means the same thing
+- on a **100 mil grid**, a logo lands on the exact cell centre, not 1.27 mm from it. This is the
+  check that the grid exemption is actually reaching the move path.
+- immediately afterwards, drag a **symbol** on the same 100 mil grid and confirm it still
+  refuses off-grid guide snaps. This is the check that `m_graphicsMode` is not sticky — a stale
+  flag exempts the next drag, and the next drag is usually a symbol.
+- the `!` off-grid warning never appears on a logo or a separator line, however far off grid
+  they end up
 - a separator line snaps to the drawing frame, to the centre of the drawing area, and to other
   separator lines — and the centre it finds is the **frame** centre, not the paper centre a few
   millimetres outside it
@@ -237,7 +266,6 @@ the tool event loop is hand-checked. New checklist entries go in
 - The Drawing Sheet Editor (`pl_editor`). A logo placed there would appear on every page and on
   the PCB; that was considered and deliberately not chosen.
 - pcbnew.
-- Any change to symbol, pin, wire or sheet behaviour.
-- Any relaxation of grid legality.
+- Any change to symbol, pin, wire or sheet behaviour, including their grid legality.
 - Snapping to title-block *dividers* as edges. Cells are containers only; adding every divider
   as an alignment edge puts many competing candidates within a few mm of each other.
