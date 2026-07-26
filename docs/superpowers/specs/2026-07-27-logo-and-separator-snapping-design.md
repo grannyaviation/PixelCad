@@ -76,7 +76,7 @@ the drawing sheet. `ALIGNMENT_GUIDE_ENGINE` itself is not touched.
 
 ### 1. Cell arithmetic — `ALIGN_GEOM::CellAt`
 
-Added to the existing `ALIGN_GEOM` namespace in `include/tool/align_geom.h` /
+Added to the existing `ALIGN_GEOM` namespace in `common/tool/align_geom.h` /
 `common/tool/align_geom.cpp` rather than a new file: it is the same kind of thing (pure,
 frame-agnostic geometry serving the alignment tools), it lands in the existing `AlignGeom*`
 test suite, and it needs no new CMake entry.
@@ -213,6 +213,14 @@ aMovingBox.Centre() )` and hand the result to the engine as the container set; `
 it. Roughly six lines. `GRID_HELPER` stays free of drawing-sheet knowledge and the box
 extrapolation is not duplicated.
 
+**The hook must run before the `HasInputs()` guard, and this is not optional.**
+`computeAlignmentGuideSnap` currently returns early on `!engine.HasInputs()` and only then
+extrapolates the moving box. In graphics mode the container is supplied *by the hook*, so at the
+moment of that guard a page whose only graphic is the logo being dragged has zero neighbours and
+zero containers — the guard fires and the cell is never computed. That is precisely the primary
+use case: one logo, no other graphics. The order must become: extrapolate the box, call the
+hook, then test `HasInputs()`.
+
 ### 5. Tool wiring
 
 `sch_move_tool.cpp` builds `guideBBox` from `GetAlignmentBox` only, so a graphics selection
@@ -237,8 +245,13 @@ Automatable:
 - `GetGraphicAlignmentBox` in `EEGridHelperTest`, mirroring the existing box-rule cases:
   bitmap, horizontal graphic line (zero height, accepted), connectable line (rejected), shape
   stroke deflation, text (rejected).
-- Extend `TheTwoAlignmentRulesDoNotOverlap` to three rules: no item type may be accepted by more
-  than one.
+- Extend `TheTwoAlignmentRulesDoNotOverlap` to cover the third rule. The invariant is **not**
+  "no type is accepted by more than one rule" — `SCH_SHAPE_T` is deliberately accepted by both
+  `GetSymbolAlignmentBox` and `GetGraphicAlignmentBox`, and that is harmless because the two
+  never apply in the same editor. The invariant that matters is that the two rules which *do*
+  compete, both being schematic rules, stay disjoint: no type may be accepted by both
+  `GetAlignmentBox` and `GetGraphicAlignmentBox`. Overlap there would make a single drag
+  ambiguous.
 
 Not automatable, and consistent with the rest of this feature — everything touching the GAL or
 the tool event loop is hand-checked. New checklist entries go in
