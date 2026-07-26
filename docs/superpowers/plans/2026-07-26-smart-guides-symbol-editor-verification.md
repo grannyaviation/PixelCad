@@ -160,6 +160,36 @@ each was invisible to the test suite.
 
 ---
 
+## Part 8 — align commands (new, and nothing here is covered by a test)
+
+`ALIGN_GEOM`'s arithmetic has unit tests. The two tools that call it have **none** — not the new
+symbol editor one, and not the schematic one it was extracted from. All of this is hand-checked.
+
+28. **The commands exist.** Select two or more items in the symbol editor → right-click → Align.
+    Six entries: Left / Centre / Right, separator, Top / Middle / Bottom. Same menu as the
+    schematic, because it reuses the same actions.
+29. **Each moves on one axis only.** Align left must not shift anything vertically.
+30. **The target is the item under the cursor.** Select three items, hover over the *middle* one,
+    align left → the others move to it, not to the leftmost.
+31. **Pins land on grid.** Align a set of pins whose target is off-grid → every pin ends on the
+    grid, not on the target's exact ordinate. This is deliberate: a pin off-grid in a library
+    part breaks every schematic that uses the symbol. Shapes and text are *not* re-snapped.
+32. **Undo is one step.** After any align, one `Ctrl+Z` restores every item. The tool commits the
+    whole `LIB_SYMBOL` once, so a partial undo means the commit was mis-scoped.
+33. **A single-item selection does nothing** and pushes no undo entry.
+34. **A derived symbol refuses.** Open a symbol inheriting from another; align must be
+    unavailable or a no-op — its graphics belong to the parent.
+35. **Text and fields are alignable**, unlike guide targets. Deliberate: the guides ignore text
+    because font metrics make it a poor reference, but an explicit align command is the user
+    asking for exactly that.
+36. **In the schematic, all six align commands still behave as before.** The extraction rewired
+    six working commands that have no test coverage — this is the only check that it did not
+    regress a shipping feature. Include a case with a **locked** item in the selection: locking
+    is how a user nominates the thing everything else lines up against, and that precedence was
+    reproduced by hand.
+
+---
+
 Rendering issues trace to `common/preview_items/alignment_guide_geom.cpp`; the box rules to
 `EE_GRID_HELPER::GetSymbolAlignmentBox` / `GetAlignmentBox`; move lifecycle to
 `eeschema/tools/symbol_editor_move_tool.cpp`; resize to `eeschema/tools/sch_point_editor.cpp`.
