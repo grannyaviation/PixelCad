@@ -2,3 +2,4 @@ kicad/
 .superpowers/
 build/
 .direnv/
+.cache/
