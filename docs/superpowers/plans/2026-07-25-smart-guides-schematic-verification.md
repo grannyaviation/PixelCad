@@ -22,6 +22,10 @@ identical symbols, so exact alignment between them **is** a whole number of grid
    the same distance**.
 4. **Centre between.** Drag a symbol into the gap between two others → centres, badges
    both sides.
+4b. **Centre on the page.** Drag a symbol toward the middle of the drawing sheet → a guide line
+   appears down the page centre on the axis that has centred, spanning the page. Check it against
+   the **page** centre, not the drawing-sheet border or the title block — the container is the
+   paper size, origin at (0, 0).
 
 ## The thing most likely to be wrong
 

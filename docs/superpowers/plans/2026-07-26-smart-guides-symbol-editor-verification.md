@@ -71,6 +71,16 @@ grid), which is what happens with legacy libraries.
 7. **Body outline to body outline.** Two rectangles, drag one until an edge lines up.
 8. **Body edge to pin column.** Drag a rectangle so its edge meets the pins.
 9. **Resize a body rectangle** (drag a corner) → the corner snaps to pins and to other shapes.
+10. **Centre inside the body.** Draw a body rectangle, then drag a graphic or a text item around
+    inside it → a guide line appears down the body's centre on whichever axis has centred, and
+    the item snaps to it. Both axes centred gives **two lines, not a crosshair** — that is the
+    change that removed the old no-axis crosshair.
+11. **Pins must not move the body container.** Add pins sticking well past the rectangle, then
+    repeat check 10. The centre must not shift: the container is the drawn outline, not the
+    outline plus pin length.
+12. **A symbol with no graphics yet** (pins only, no rectangle) must produce no container guide
+    at all — not one at the origin. An invalid body box reaching the engine would read as a real
+    container at (0, 0) and drag things toward it.
 
 ### Resize handles that are not corners — expected quirks, not bugs
 
