@@ -18,7 +18,7 @@
 - **No behaviour change for symbols, pins, wires, labels or sheets.** Any task that alters what a symbol drag does has gone wrong.
 - Build: `nix develop -c cmake --build build -j6 --target <target>` from `/home/asqude/projecte/PixelCad`.
 - Test: `nix develop -c ./build/qa/tests/common/qa_common --run_test='<filter>'` (likewise `qa/tests/eeschema/qa_eeschema`).
-- The pcbnew grid-helper suite is `PCBGridHelper*`. `PcbGridHelper*` matches almost nothing and prints a false green.
+- The pcbnew grid-helper suite is `PCBGridHelper*` and reports 23 cases. `PcbGridHelper*` matches almost nothing and prints a false green.
 - **Never launch a GUI** (`kicad`, `eeschema`, `pcbnew`). They open on the user's real desktop. Interactive verification is the user's job.
 - Commit to the `kicad/` repo (a git clone, branch `feature/smart-guides`), not the outer `PixelCad` repo. Docs go in the outer repo.
 
@@ -776,7 +776,7 @@ nix develop -c ./build/qa/tests/common/qa_common --run_test='AlignGeom*,Alignmen
 nix develop -c ./build/qa/tests/pcbnew/qa_pcbnew --run_test='PCBGridHelper*'
 ```
 
-Expected: `0` errors; all three `*** No errors detected`. `PCBGridHelper*` must report 24 cases — if it reports 1, the filter is wrong.
+Expected: `0` errors; all three `*** No errors detected`. `PCBGridHelper*` must report **23** cases — 21 `BOOST_AUTO_TEST_CASE` (one more is commented out) plus 2 `BOOST_FIXTURE_TEST_CASE`. If it reports 1, the filter is wrong and the green is false. (The combined filter `PCBGridHelper*,*Align*` reports 24; the extra case is an `*Align*` match outside this suite. Do not use the 24 as the expectation for the narrow filter.)
 
 - [ ] **Step 7: Commit**
 
@@ -1088,6 +1088,202 @@ git commit -m "eeschema: guide graphics moves and graphic endpoint drags
 
 A graphics-only selection previously produced no guide bbox at all and fell
 straight into ClearMoveContext(), so logos and notes lines had no guides.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 7: The cell's edges as alignment targets
+
+Found by the Task 4 review, not by the original plan. `KIND_CONTAINER` produces a **centring**
+candidate and nothing else (`alignment_guide_engine.cpp:207`), so as built a separator line can
+centre in the drawing area but can never sit flush against the frame. "Snap to the borders of the
+schematic" was half the request and is not delivered.
+
+The fix is to offer the current cell as a **neighbour** box as well as a container, so its four
+edges become alignment targets. The cell only — never every drawing-sheet segment. Making each
+title-block divider a target was considered and explicitly rejected during design; it puts a dozen
+candidates within a few millimetres of each other.
+
+This task also closes the latent defect the same review flagged, and a stale comment from Task 5.
+
+**Files:**
+- Modify: `kicad/eeschema/tools/ee_grid_helper.h` (one new member)
+- Modify: `kicad/eeschema/tools/ee_grid_helper.cpp` (`CollectAlignmentNeighbors`, `updateDynamicContainers`, `clearMoveState`)
+- Modify: `kicad/eeschema/tools/sch_point_editor.cpp` (comment only)
+- Test: `kicad/qa/tests/common/test_alignment_guide_engine.cpp`
+
+**Interfaces:**
+- Consumes: `ALIGN_GEOM::CellAt`, `m_sheetSegments`, `m_graphicsMode` (Tasks 1, 3, 4).
+- Produces: nothing new.
+
+- [ ] **Step 1: Write the failing test**
+
+This pins the *premise* of the change: a box offered as a container yields only centring, while
+the same box offered as a neighbour yields edge alignment. Append to
+`kicad/qa/tests/common/test_alignment_guide_engine.cpp`, before `BOOST_AUTO_TEST_SUITE_END()`:
+
+```cpp
+// Why the drawing-sheet cell is handed to the engine twice -- once as a container, once as a
+// neighbour.  A container only ever produces a centring candidate, so a separator line offered
+// nothing but a container could centre in the drawing area and never sit flush against the
+// frame.  If this ever stops being true, the duplicate registration in EE_GRID_HELPER is dead
+// weight and should go.
+BOOST_AUTO_TEST_CASE( ContainerCentresButOnlyANeighbourAlignsAnEdge )
+{
+    const BOX2I frame( VECTOR2I( 0, 0 ), VECTOR2I( 1000, 1000 ) );
+
+    // Tucked into the top-left corner: 40 from each edge, but 410 from the centre on both axes.
+    const BOX2I moving( VECTOR2I( 40, 40 ), VECTOR2I( 100, 100 ) );
+
+    ALIGNMENT_GUIDE_ENGINE containerOnly;
+    containerOnly.SetContainers( { frame } );
+
+    // The container's only offer is the centre, 410 away on each axis -- out of a 100 reach.
+    BOOST_CHECK( !containerOnly.FindSnap( moving, 100 ).has_value() );
+
+    ALIGNMENT_GUIDE_ENGINE withNeighbour;
+    withNeighbour.SetContainers( { frame } );
+    withNeighbour.SetNeighbors( { frame } );
+
+    // As a neighbour the same box offers its top and left edges, 40 away on each axis.
+    const std::optional<ALIGNMENT_GUIDE_ENGINE::RESULT> snap = withNeighbour.FindSnap( moving, 100 );
+
+    BOOST_REQUIRE( snap.has_value() );
+    BOOST_CHECK_EQUAL( snap->Offset.x, -40 );
+    BOOST_CHECK_EQUAL( snap->Offset.y, -40 );
+}
+```
+
+- [ ] **Step 2: Run it**
+
+```bash
+cd /home/asqude/projecte/PixelCad
+nix develop -c cmake --build build -j6 --target qa_common \
+  && nix develop -c ./build/qa/tests/common/qa_common --run_test='AlignmentGuideEngine*'
+```
+
+This test describes the engine as it already is, so it should **pass first time**. It is a
+characterisation test guarding the assumption the rest of the task rests on, not a red test.
+Report honestly that it passed; do not manufacture a failure. If it *fails*, stop and report —
+the premise is wrong and the rest of this task is built on sand.
+
+- [ ] **Step 3: Keep the drag-time neighbour list**
+
+In `kicad/eeschema/tools/ee_grid_helper.h`, next to `m_sheetSegments`:
+
+```cpp
+    /// The graphics neighbours collected at drag start.  Kept because updateDynamicContainers()
+    /// re-sets the engine's neighbour list on every motion to append the cell the item is
+    /// currently over, and would otherwise drop them.
+    std::vector<BOX2I> m_graphicsNeighbors;
+```
+
+In `kicad/eeschema/tools/ee_grid_helper.cpp`, extend `clearMoveState()` so it reads:
+
+```cpp
+void EE_GRID_HELPER::clearMoveState()
+{
+    m_sheetSegments.clear();
+    m_graphicsNeighbors.clear();
+    m_graphicsMode = false;
+}
+```
+
+In `CollectAlignmentNeighbors`, immediately **before** the existing
+`engine.SetNeighbors( std::move( boxes ) );`:
+
+```cpp
+    // Copied before the move: updateDynamicContainers() rebuilds the list every motion.
+    if( m_graphicsMode )
+        m_graphicsNeighbors = boxes;
+```
+
+- [ ] **Step 4: Offer the cell as a neighbour, and skip centring for a resize handle**
+
+Replace the body of `EE_GRID_HELPER::updateDynamicContainers` with:
+
+```cpp
+void EE_GRID_HELPER::updateDynamicContainers( const BOX2I& aMovingBox )
+{
+    if( !m_graphicsMode )
+        return;
+
+    ALIGNMENT_GUIDE_ENGINE& engine = getSnapManager().GetAlignmentEngine();
+
+    // Measured from the moving box's centre, which is the point that ends up on the cell centre.
+    const std::optional<BOX2I> cell = ALIGN_GEOM::CellAt( m_sheetSegments, aMovingBox.Centre() );
+
+    // A degenerate box is a resize handle, not an item: AlignPointToGuides() collapses the move
+    // context onto the point being dragged.  Centring a line *endpoint* inside a title-block cell
+    // is meaningless -- what an endpoint drag wants is the cell's edges, which the neighbour
+    // registration below provides.
+    const bool centreable = aMovingBox.GetWidth() > 0 || aMovingBox.GetHeight() > 0;
+
+    // Cleared rather than left stale when the item is over no cell at all, or a logo dragged off
+    // the title block keeps being pulled back into the cell it just left.
+    if( cell && centreable )
+        engine.SetContainers( { *cell } );
+    else
+        engine.SetContainers( {} );
+
+    // The cell is registered as a neighbour as well, because a container yields a centring
+    // candidate and nothing else -- so without this a separator line could centre in the drawing
+    // area but never sit flush against the frame, which is half of what was asked for.
+    //
+    // The cell only, never every drawing-sheet segment: making each title-block divider a target
+    // was considered during design and rejected, because it puts a dozen candidates within a few
+    // millimetres of each other.
+    std::vector<BOX2I> neighbors = m_graphicsNeighbors;
+
+    if( cell )
+        neighbors.push_back( *cell );
+
+    engine.SetNeighbors( std::move( neighbors ) );
+}
+```
+
+- [ ] **Step 5: Correct the stale comment in the point editor**
+
+In `kicad/eeschema/tools/sch_point_editor.cpp`, the comment above `guideResize` still ends with
+"A shape on a schematic sheet is excluded: there it has no relationship to anything worth guiding
+to." Task 5 made that false — the new clause admits `SCH_SHAPE_T` on a schematic sheet. Replace
+that sentence with:
+
+```cpp
+            // On a schematic sheet, graphics guide to the drawing sheet instead: a shape, a
+            // separator line or a logo lines its corner up with the title block and the frame.
+```
+
+Leave the two sentences before it alone.
+
+- [ ] **Step 6: Build and run everything**
+
+```bash
+cd /home/asqude/projecte/PixelCad
+nix develop -c cmake --build build -j6 2>&1 | grep -c "error:"
+nix develop -c ./build/qa/tests/common/qa_common --run_test='AlignGeom*,AlignmentGuideEngine*'
+nix develop -c ./build/qa/tests/eeschema/qa_eeschema --run_test='EEGridHelperTest*'
+nix develop -c ./build/qa/tests/pcbnew/qa_pcbnew --run_test='PCBGridHelper*'
+```
+
+Expected: `0` errors; 44, 20 and 23 cases respectively, all `*** No errors detected`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+cd /home/asqude/projecte/PixelCad/kicad
+git add eeschema/tools/ee_grid_helper.h eeschema/tools/ee_grid_helper.cpp \
+        eeschema/tools/sch_point_editor.cpp qa/tests/common/test_alignment_guide_engine.cpp
+git commit -m "eeschema: align graphics to the drawing-sheet cell's edges
+
+A container yields a centring candidate and nothing else, so a separator
+line could centre in the drawing area but never sit flush against the
+frame.  Register the cell as a neighbour as well.
+
+Also skip centring when the moving box is degenerate: that is a resize
+handle, and centring a line endpoint in a title-block cell is meaningless.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
