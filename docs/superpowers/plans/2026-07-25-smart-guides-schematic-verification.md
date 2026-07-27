@@ -98,6 +98,48 @@ points does not sit on the current grid. Only during a move/drag; it never shows
 18. Plain move, drag, and BREAK (several successive break clicks) behave exactly as
     before. Pin/wire/junction snapping unchanged — item anchors still beat guides.
 
+## Drawing-sheet snapping (logos and separator lines)
+
+Automated coverage stops at `ALIGN_GEOM::CellAt` and `GetGraphicAlignmentBox`. Everything below
+is hand-checked. Work at **100 mil**, which is the grid this was designed against.
+
+19. **Logo centres in a title-block cell.** Place → Image, drag it over a title-block box → it
+    snaps to the exact centre of the cell it is over, and a guide line shows the centring axis.
+20. **The cell follows the logo.** Pick the logo up in the middle of the page and carry it slowly
+    across the title block. The cell it targets must change as it crosses each divider. A logo
+    that keeps being pulled back toward the cell it started in means the container was computed
+    once at drag start.
+21. **A page with no other graphics still works.** Delete every other graphic, then drag the only
+    logo on the sheet. It must still centre. This is the case that fails if the container hook
+    runs after the `HasInputs()` guard rather than before it, and it is the primary use case.
+22. **Exactly centred, not nearly.** On 100 mil the logo must land on the cell centre, not 1.27 mm
+    from it. If it sits visibly against an edge, the grid exemption is not reaching the move path.
+23. **Symbols are still strict — check this immediately after 22.** Drag a symbol on the same
+    100 mil grid; it must still refuse off-grid guide snaps and still align only to symbols and
+    sheets. A symbol that suddenly snaps anywhere means `m_graphicsMode` is sticky, and the next
+    drag after a logo is usually a symbol.
+24. **Separator lines.** Draw a notes line, then drag it → it snaps to the drawing frame, to the
+    centre of the drawing area, and to other separator lines.
+25. **The centre is the frame's, not the paper's.** The line must centre on the drawn border, not
+    a few millimetres outside it where the paper edge is.
+26. **Endpoint drags too.** Drag one end of a separator line → it reaches the frame the same way
+    the whole line does.
+27. **No `!` on graphics.** However far off grid a logo or separator ends up, the off-grid warning
+    must never appear on it — it reads connection points, and these have none.
+28. **A custom `.kicad_wks` behaves the same.** Try a template with a real logo box.
+29. **Nothing left behind** after `Esc` and after a normal drop.
+30. **A logo aligns to other logos as well as to the cell.** Place two images, drag one until
+    their top edges line up → a guide appears. If a logo snaps to the frame but never to another
+    graphic, the drag-start neighbour list was lost — it is copied before being moved into the
+    engine, and getting that order wrong empties it silently.
+31. **An endpoint drag aligns but does not centre.** Drag one end of a separator line → it reaches
+    the frame edge, but the endpoint must not jump to the middle of a title-block cell. The
+    resize path collapses the move context onto the handle, so centring there would centre the
+    *handle*, which is meaningless.
+32. **A separator line moved whole still centres.** A horizontal line has zero height by design;
+    it must still centre in the drawing area. This and check 31 are two sides of one guard — if
+    31 passes and 32 fails, the degenerate-box test is `&&` where it should be `||`.
+
 ---
 
 Rendering issues trace to `common/preview_items/alignment_guide_geom.cpp`;
