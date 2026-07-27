@@ -1332,6 +1332,17 @@ is hand-checked. Work at **100 mil**, which is the grid this was designed agains
     must never appear on it — it reads connection points, and these have none.
 28. **A custom `.kicad_wks` behaves the same.** Try a template with a real logo box.
 29. **Nothing left behind** after `Esc` and after a normal drop.
+30. **A logo aligns to other logos as well as to the cell.** Place two images, drag one until
+    their top edges line up → a guide appears. If a logo snaps to the frame but never to another
+    graphic, the drag-start neighbour list was lost — it is copied before being moved into the
+    engine, and getting that order wrong empties it silently.
+31. **An endpoint drag aligns but does not centre.** Drag one end of a separator line → it reaches
+    the frame edge, but the endpoint must not jump to the middle of a title-block cell. The
+    resize path collapses the move context onto the handle, so centring there would centre the
+    *handle*, which is meaningless.
+32. **A separator line moved whole still centres.** A horizontal line has zero height by design;
+    it must still centre in the drawing area. This and check 31 are two sides of one guard — if
+    31 passes and 32 fails, the degenerate-box test is `&&` where it should be `||`.
 ```
 
 - [ ] **Step 2: Commit**
