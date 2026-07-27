@@ -132,13 +132,20 @@ is hand-checked. Work at **100 mil**, which is the grid this was designed agains
     their top edges line up → a guide appears. If a logo snaps to the frame but never to another
     graphic, the drag-start neighbour list was lost — it is copied before being moved into the
     engine, and getting that order wrong empties it silently.
-31. **An endpoint drag aligns but does not centre.** Drag one end of a separator line → it reaches
-    the frame edge, but the endpoint must not jump to the middle of a title-block cell. The
-    resize path collapses the move context onto the handle, so centring there would centre the
-    *handle*, which is meaningless.
-32. **A separator line moved whole still centres.** A horizontal line has zero height by design;
-    it must still centre in the drawing area. This and check 31 are two sides of one guard — if
-    31 passes and 32 fails, the degenerate-box test is `&&` where it should be `||`.
+31. **Endpoint drags reach the cell too.** Drag one end of a separator line → it snaps to the
+    frame edges and to the frame centre, the same targets the whole line gets. An earlier design
+    excluded the centre for endpoint drags; that guard was removed because it could never fire.
+32. **Known limitation, do not report.** Equal-spacing badges and centre-between-two snaps do
+    not work for graphics. The drawing-sheet cell spans the page, so as an alignment neighbour it
+    merges every other graphic into a single cluster and the equal-gap search never runs. Symbols
+    are unaffected. Getting both would need the engine to distinguish "edge target" from "spacing
+    participant", which it currently does not.
+33. **Known quirk, do not report.** The drawing area is not always the whole frame. The title
+    block's top edge only spans the right-hand part of the page, so a separator whose centre sits
+    to the *left* of the title block gets a cell that includes the title-block band, while one to
+    the right gets a cell stopping at it. Nudging a vertical separator across that ordinate can
+    jump its vertical centring target by over a centimetre on A4. Full-width separators sit well
+    left of the boundary and get the true frame centre, which is the case that matters.
 
 ---
 
