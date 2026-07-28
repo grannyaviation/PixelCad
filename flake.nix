@@ -1,14 +1,65 @@
 {
-  description = "PixelCad - KiCad fork dev environment";
+  description = "PixelCad - KiCad fork with smart alignment guides";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-  outputs = { self, nixpkgs }:
+    # The fork is upstream KiCad's source tree, so it has no flake.nix of its own
+    # and cannot be a flake input any other way.  Fetching it with flake = false
+    # lets flake.lock pin the commit, which is what removes the fetchFromGitHub
+    # hash that would otherwise need updating by hand on every bump.
+    #
+    # Not a relative path to ./kicad: that clone is .gitignore'd here, so a flake
+    # build cannot see it through self.  The installed package therefore tracks
+    # the pushed commit, never the working tree.
+    kicad-src = {
+      url = "github:grannyaviation/kicad/feature/smart-guides";
+      flake = false;
+    };
+  };
+
+  outputs = { self, nixpkgs, kicad-src }:
     let
-      forSystems = f: nixpkgs.lib.genAttrs [ "aarch64-linux" "x86_64-linux" ]
+      systems = [ "aarch64-linux" "x86_64-linux" ];
+
+      forSystems = f: nixpkgs.lib.genAttrs systems
         (system: f nixpkgs.legacyPackages.${system});
+
+      # KiCad master needs OCCT 7.9's TKDEIGES/TKDESTEP, but the nixpkgs kicad
+      # derivation pins opencascade-occt_7_6 (pkgs/by-name/ki/kicad/base.nix) and
+      # hands it to CMake as OCC_INCLUDE_DIR.  base.nix receives it through
+      # callPackage from the package set rather than as an explicit argument of
+      # the wrapper, so an overlay is the only lever -- .override cannot reach it.
+      #
+      # Deliberately a private nixpkgs instance rather than an overlay on the
+      # caller's: importing this flake must not rebuild everything else on their
+      # system that legitimately wants 7.6.  The devShells below keep using the
+      # untouched legacyPackages for the same reason -- pointing them here would
+      # rebuild kicad.base just to enter a shell.
+      packagePkgs = system: import nixpkgs {
+        inherit system;
+        overlays = [ (final: prev: { opencascade-occt_7_6 = prev.opencascade-occt; }) ];
+      };
+
+      forPackagePkgs = f: nixpkgs.lib.genAttrs systems
+        (system: f (packagePkgs system));
     in
     {
+      packages = forPackagePkgs (pkgs: rec {
+        default = pixelcad;
+
+        # kicad-unstable, not kicad: package.nix documents that the srcs override
+        # has no effect on the stable build.  The fork is master (10.99), so the
+        # unstable expression is the right base regardless.
+        #
+        # srcs.kicad must be something carrying a .rev -- both base.nix:84 and
+        # package.nix:193 derive the version from src.rev when stable is false.
+        # A flake input satisfies that; a bare store path would not.
+        pixelcad = pkgs.kicad-unstable.override {
+          srcs.kicad = kicad-src;
+        };
+      });
+
       devShells = forSystems (pkgs:
       let
         # KiCad wants ONE template dir holding both the worksheet templates and

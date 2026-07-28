@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "kicad-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785267695,
+        "narHash": "sha256-MbYWNV0Ba3zgUfu3pAIfYB7FqZfGzITVrhJGHvGI5FE=",
+        "owner": "grannyaviation",
+        "repo": "kicad",
+        "rev": "024c60571983b9c0e16c925428488843eef842ec",
+        "type": "github"
+      },
+      "original": {
+        "owner": "grannyaviation",
+        "ref": "feature/smart-guides",
+        "repo": "kicad",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1784796856,
@@ -18,6 +35,7 @@
     },
     "root": {
       "inputs": {
+        "kicad-src": "kicad-src",
         "nixpkgs": "nixpkgs"
       }
     }
