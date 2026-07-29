@@ -147,6 +147,29 @@ is hand-checked. Work at **100 mil**, which is the grid this was designed agains
     jump its vertical centring target by over a centimetre on A4. Full-width separators sit well
     left of the boundary and get the true frame centre, which is the case that matters.
 
+## Hierarchical sheet pins
+
+34. **Pin to pin across the sheet.** Open a sheet with hierarchical pins on both borders. Drag a
+    left-border pin vertically → a horizontal guide appears when it comes level with a
+    right-border pin, and it snaps there. Then the same along a top/bottom border, horizontally.
+35. **Equal pin pitch.** With three or more pins on one border, drag a fourth → equal-spacing
+    badges appear as it reaches the pitch of the run, the same way symbols get them.
+36. **The dragged pin is not its own target.** The guide must never appear the instant the drag
+    starts and stay put. A target at the dragged pin's own position is an offset of zero, which
+    wins its axis unbeatably and would freeze the drag; the sweep excludes selected pins for that
+    reason.
+37. **A sheet drag is unaffected.** Drag the whole sheet → guides align sheet rectangles to
+    symbol bodies as before, never to pin points.
+38. **Wire ends still win.** Drag a pin to within a few mils of a loose wire end → it snaps to
+    the wire end, not to a pin guide. Pins are connectable, so they keep anchor > guide.
+39. **Known limitation, do not report.** Two pins only align if they already sit on the same
+    lattice of the connection grid: offsets have to be whole grid steps, or the pin would land off
+    grid and break its net. Two pin columns half a grid step apart therefore get no guide at all.
+    The off-grid `!` glyph is what flags that case.
+40. **The vertical guide along the border is expected.** Pins on the same border already share an
+    ordinate, so a zero-offset guide line runs down the column for the whole drag. It is telling
+    the truth — the pin *is* aligned with them.
+
 ---
 
 Rendering issues trace to `common/preview_items/alignment_guide_geom.cpp`;
