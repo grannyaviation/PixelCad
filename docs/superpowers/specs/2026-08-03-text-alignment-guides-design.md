@@ -5,9 +5,16 @@ alignment guides. Text was excluded from the original feature on the grounds tha
 make a poor reference. That exclusion is being lifted for the schematic, deliberately and with
 the consequences priced in.
 
-Scope is `SCH_FIELD_T` and `SCH_TEXT_T`. Text boxes and net labels stay out: a text box already
-has a drawn rectangle and aligns today under the graphics rule, and a net label is connectable, so
-it must keep whole-grid-step offsets and anchor-beats-guide.
+Scope is `SCH_FIELD_T` and `SCH_TEXT_T`. Text boxes and net labels stay out: a text box is a drawn
+rectangle that happens to contain text, and a net label is connectable, so it would have to keep
+whole-grid-step offsets and anchor-beats-guide.
+
+Neither of those gets alignment guides today, and this design does not give them any. An earlier
+draft of this document claimed a text box "already aligns under the graphics rule" — that was
+wrong. `GetGraphicAlignmentBox` switches on `Type()` and its cases are `SCH_BITMAP_T`,
+`SCH_LINE_T` and `SCH_SHAPE_T`; `SCH_TEXTBOX::Type()` returns `SCH_TEXTBOX_T`, so a text box
+matches no case in any of the five rules. Bringing text boxes in is a separate decision, not a
+consequence of this one.
 
 ## The fifth rule
 

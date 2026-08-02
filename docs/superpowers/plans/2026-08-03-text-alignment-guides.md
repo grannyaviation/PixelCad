@@ -165,9 +165,10 @@ In `kicad/eeschema/tools/ee_grid_helper.h`, insert immediately after the closing
     /**
      * The box alignment guides measure a *schematic text item* by, or nullopt for anything else.
      *
-     * Fields and free text only -- SCH_FIELD_T and SCH_TEXT_T.  Text boxes already align under the
-     * graphic rule, and a net label is connectable, so it must keep whole-grid-step offsets and
-     * anchor-beats-guide.
+     * Fields and free text only -- SCH_FIELD_T and SCH_TEXT_T.  A text box is a drawn rectangle
+     * that happens to contain text, and a net label is connectable, so it would have to keep
+     * whole-grid-step offsets and anchor-beats-guide.  Neither is in scope, and neither gets
+     * alignment guides from any of the five rules today.
      *
      * The drawn box, deliberately not the anchor point the other point rules use.  Anchors only
      * line up visually when two texts share a justification, and what the user wants is a column
@@ -831,10 +832,10 @@ immediately after the `40.` item that closes the "Hierarchical sheet pins" secti
     still refuses off-grid snaps. A symbol that suddenly snaps anywhere means `m_textMode` is
     sticky between drags.
 47. **Known limitations, do not report.** Free text gets no equal-spacing badges (the drawing-sheet
-    cell merges every neighbour into one cluster — the same cause as item 32). A text box
-    (Place → Text Box) is not in scope and still aligns under the graphics rule. Net labels are
-    not in scope at all. And a guide moves when you rename a field: the box is the glyph extents,
-    so `U1` and `U10` do not have the same right edge.
+    cell merges every neighbour into one cluster — the same cause as item 32). Text boxes
+    (Place → Text Box) and net labels get no alignment guides at all: neither is in scope here,
+    and no other rule covers them either. And a guide moves when you rename a field: the box is
+    the glyph extents, so `U1` and `U10` do not have the same right edge.
 ```
 
 - [ ] **Step 4: Verify the numbering and placement**
@@ -888,5 +889,7 @@ Do **not** run it. Point them at checks 41–47.
   dense sheet (body plus refdes plus value per symbol). The list is sorted by distance from the
   moving box, so the far ones trim first. This is a recorded cost in the spec, not a bug to fix
   here.
-- **Do not add `SCH_TEXTBOX_T`.** It has a drawn rectangle and already aligns under the graphic
-  rule. Adding it would give one item two rules.
+- **Do not add `SCH_TEXTBOX_T`.** It is out of scope, and it is *not* covered by the graphic rule
+  either — that rule switches on `SCH_SHAPE_T` and `SCH_TEXTBOX::Type()` returns `SCH_TEXTBOX_T`,
+  so a text box matches no case in any of the five rules. Whether to bring text boxes in is a
+  separate decision for the human, not something to slip into this plan.
