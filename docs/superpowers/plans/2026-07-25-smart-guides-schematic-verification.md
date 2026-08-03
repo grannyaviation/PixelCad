@@ -192,10 +192,10 @@ is hand-checked. Work at **100 mil**, which is the grid this was designed agains
     still refuses off-grid snaps. A symbol that suddenly snaps anywhere means `m_textMode` is
     sticky between drags.
 47. **Known limitations, do not report.** Free text gets no equal-spacing badges (the drawing-sheet
-    cell merges every neighbour into one cluster — the same cause as item 32). Text boxes
-    (Place → Text Box) and net labels get no alignment guides at all: neither is in scope here,
-    and no other rule covers them either. And a guide moves when you rename a field: the box is
-    the glyph extents, so `U1` and `U10` do not have the same right edge.
+    cell merges every neighbour into one cluster — the same cause as item 32). Net labels get no
+    alignment guides at all: they are connectable, so no rule covers them. And a guide moves when
+    you rename a field: the box is the glyph extents, so `U1` and `U10` do not have the same right
+    edge.
 48. **No off-grid warning on text, ever.** Drag a field or free text arbitrarily far off grid → no
     `!` glyph appears, however far off it ends up. Text has no connection points, so the warning
     has nothing to test and can never fire for it; one that appears means the warning is reading
@@ -205,6 +205,11 @@ is hand-checked. Work at **100 mil**, which is the grid this was designed agains
     bodies, not text. A selection containing anything connectable is not a text gesture, whatever
     else rides along with it. This is the human-visible half of "the grid exemption cannot leak,"
     which has no automated test.
+50. **Text boxes align as graphics.** Place → Text Box, then drag it → it lines up with logos,
+    separator lines, other text boxes and the drawing frame, and centres in a title-block cell.
+    It must be measured by its **border**, not by the text inside it, and it must never line up
+    with a reference designator — a text box is a rectangle the user positions, so it follows the
+    graphic rule, not the text one.
 
 ---
 

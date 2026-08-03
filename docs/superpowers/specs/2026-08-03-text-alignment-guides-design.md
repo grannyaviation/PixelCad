@@ -9,12 +9,16 @@ Scope is `SCH_FIELD_T` and `SCH_TEXT_T`. Text boxes and net labels stay out: a t
 rectangle that happens to contain text, and a net label is connectable, so it would have to keep
 whole-grid-step offsets and anchor-beats-guide.
 
-Neither of those gets alignment guides today, and this design does not give them any. An earlier
-draft of this document claimed a text box "already aligns under the graphics rule" — that was
-wrong. `GetGraphicAlignmentBox` switches on `Type()` and its cases are `SCH_BITMAP_T`,
-`SCH_LINE_T` and `SCH_SHAPE_T`; `SCH_TEXTBOX::Type()` returns `SCH_TEXTBOX_T`, so a text box
-matches no case in any of the five rules. Bringing text boxes in is a separate decision, not a
-consequence of this one.
+An earlier draft of this document claimed a text box "already aligns under the graphics rule" —
+that was wrong at the time. `GetGraphicAlignmentBox` switched on `SCH_BITMAP_T`, `SCH_LINE_T` and
+`SCH_SHAPE_T`, and `SCH_TEXTBOX::Type()` returns `SCH_TEXTBOX_T`, so a text box matched no case in
+any of the five rules and got no guides at all.
+
+That gap was closed as a follow-on once this work landed: `SCH_TEXTBOX_T` now shares the
+`SCH_SHAPE_T` case, so a text box is measured by its border, aligns to logos, separators and the
+drawing sheet, and never chases a reference designator. It is a rectangle the user positions, which
+is why `GetItemGrid()` already put it on the graphic grid. Net labels remain out — they are
+connectable, and still get no guides from any rule.
 
 ## The fifth rule
 
