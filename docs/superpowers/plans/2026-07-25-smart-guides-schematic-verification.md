@@ -170,6 +170,33 @@ is hand-checked. Work at **100 mil**, which is the grid this was designed agains
     ordinate, so a zero-offset guide line runs down the column for the whole drag. It is telling
     the truth — the pin *is* aligned with them.
 
+## Field and free-text alignment
+
+41. **Reference designator to reference designator.** Drag `U1`'s refdes off its symbol until it
+    comes level with `U2`'s → a guide appears and it snaps. Then line up their left edges. The
+    guide must sit on the drawn glyphs, not above or below them.
+42. **Text aligns to bodies too.** Drag a refdes toward the top edge of any symbol body or the
+    border of a hierarchical sheet → a guide appears on that edge. This is deliberate: text
+    aligns to text *and* to bodies.
+43. **Fields of an unselected symbol are targets.** The symbol whose refdes you are lining up
+    against is not selected, and its fields are not in the R-tree at all. If nothing ever appears,
+    the field expansion in `CollectAlignmentNeighbors()` is not running.
+44. **Equal pitch across a refdes column.** With three refdes at even spacing, drag a fourth → the
+    equal-spacing badges appear. They must still work here; that is the whole reason fields are
+    denied the drawing-sheet container.
+45. **Free text centres in the title block.** Place → Text, drag it over a title-block box → it
+    centres in the cell, with a guide on the centring axis. Free text *does* get the container, so
+    it correspondingly gets no equal-spacing badges — see 47.
+46. **A whole symbol drag is unaffected — check this immediately after 41.** Drag the symbol
+    itself, not its refdes → it aligns to symbol bodies and sheets as before, never to text, and
+    still refuses off-grid snaps. A symbol that suddenly snaps anywhere means `m_textMode` is
+    sticky between drags.
+47. **Known limitations, do not report.** Free text gets no equal-spacing badges (the drawing-sheet
+    cell merges every neighbour into one cluster — the same cause as item 32). Text boxes
+    (Place → Text Box) and net labels get no alignment guides at all: neither is in scope here,
+    and no other rule covers them either. And a guide moves when you rename a field: the box is
+    the glyph extents, so `U1` and `U10` do not have the same right edge.
+
 ---
 
 Rendering issues trace to `common/preview_items/alignment_guide_geom.cpp`;
