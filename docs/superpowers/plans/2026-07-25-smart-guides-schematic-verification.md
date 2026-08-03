@@ -196,6 +196,15 @@ is hand-checked. Work at **100 mil**, which is the grid this was designed agains
     (Place → Text Box) and net labels get no alignment guides at all: neither is in scope here,
     and no other rule covers them either. And a guide moves when you rename a field: the box is
     the glyph extents, so `U1` and `U10` do not have the same right edge.
+48. **No off-grid warning on text, ever.** Drag a field or free text arbitrarily far off grid → no
+    `!` glyph appears, however far off it ends up. Text has no connection points, so the warning
+    has nothing to test and can never fire for it; one that appears means the warning is reading
+    the wrong thing.
+49. **A mixed selection stays strict.** Select a reference designator together with its symbol, or
+    together with a wire, and drag → the guides still refuse off-grid snaps and still measure
+    bodies, not text. A selection containing anything connectable is not a text gesture, whatever
+    else rides along with it. This is the human-visible half of "the grid exemption cannot leak,"
+    which has no automated test.
 
 ---
 
