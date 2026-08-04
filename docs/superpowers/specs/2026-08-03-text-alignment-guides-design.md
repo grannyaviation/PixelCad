@@ -58,9 +58,23 @@ Empty selection is false.
 ## Targets
 
 Text mode is chosen once at drag start, in `CollectAlignmentNeighbors()`, alongside the existing
-`m_graphicsMode` and `sheetPinMode` decisions, and gated on `!inSymbolEditor()` like both of them.
-The symbol editor keeps its own rule unchanged: pin names and field text there stay unaligned.
-Never by filtering targets afterwards.
+`m_graphicsMode` and `sheetPinMode` decisions. Never by filtering targets afterwards.
+
+Unlike those two it is *not* gated on `!inSymbolEditor()`. That gate was in the first version of
+this work and it was wrong: a symbol's reference designator and value are `SCH_FIELD` in the symbol
+editor exactly as they are on a sheet, the author drags them by hand into place, and wanting them
+level is the same want. Free text placed in a symbol is `SCH_TEXT` there too.
+
+What text aligns *to* does differ by editor, and that is the one thing the sweep branches on: the
+body box that fills in behind the text rule is `GetSymbolAlignmentBox()` in the symbol editor and
+`GetAlignmentBox()` on a sheet. So a value glyph lines up with a pin or with the body outline the
+author drew, and a reference designator on a sheet lines up with symbol and sheet rectangles —
+never the reverse. Pin names and pin numbers stay unaligned in both: they are glyphs a pin draws,
+not items anyone drags.
+
+No field expansion is needed in the symbol editor. `SCH_VIEW::DisplaySymbol()` adds the edited
+symbol's fields to the view individually, so `KIGFX::VIEW::Query()` returns them directly and the
+expansion branch matches nothing.
 
 Each visible item contributes `GetTextAlignmentBox( item )` if it has one, otherwise
 `GetAlignmentBox( item )`. So the candidate set is text, non-power symbol bodies and sheet
@@ -84,6 +98,12 @@ Split on whether the selection holds a field:
   sheet margins and two centring candidates millimetres apart, one on an edge that is never drawn,
   is worse than one.
 - **Any `SCH_FIELD`** — no container at all.
+
+In the symbol editor neither applies: the container is the symbol's body outline, set for every
+mode there and unchanged by this work. Text gets it, unlike a field on a sheet, because the reason
+a sheet refuses is that its container spans the whole page and merges every neighbour into one
+cluster. A body outline is small enough that it does not, and "value centred under the body" is
+something symbol authors want.
 
 The split exists because of a known limitation already recorded for graphics (checklist item 32):
 the drawing-sheet cell spans the page, so as an alignment neighbour it merges every other item
@@ -150,3 +170,7 @@ symbol drag unaffected, and no `!` glyph on text however far off grid it lands.
   one. Consistent with every other mode.
 - **No equal-spacing badges for free text.** It takes the container, and the container merges the
   neighbours into one cluster. Fields keep their badges; that is the whole point of the split.
+- **Hidden fields get no guides in the symbol editor.** The rule rejects `!IsVisible()`, but that
+  editor draws hidden fields greyed out rather than hiding them, so Footprint and Datasheet — both
+  hidden by default — are on screen there and still unaligned. Fixing it means teaching a static
+  rule the frame's show-hidden setting; not worth the plumbing until someone asks.

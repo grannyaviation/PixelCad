@@ -210,6 +210,25 @@ is hand-checked. Work at **100 mil**, which is the grid this was designed agains
     It must be measured by its **border**, not by the text inside it, and it must never line up
     with a reference designator — a text box is a rectangle the user positions, so it follows the
     graphic rule, not the text one.
+51. **Symbol editor: fields align to each other.** Open a symbol for editing, drag its **Value**
+    under its **Reference** → guides appear and it lines up with the reference's edges. Repeat with
+    a second symbol that has extra user fields → a column of them snaps flush and picks up
+    equal-pitch badges, exactly as a refdes column does on a sheet.
+52. **Symbol editor: fields align to pins and to the body.** Drag a field near a pin end → it lines
+    up with that pin's position. Drag it near the body rectangle → it lines up with the body's
+    edges and centres inside it. The symbol editor's own rule supplies these targets, so a field
+    there aligns to pins and drawn shapes — the opposite of a sheet, where a refdes must never
+    chase a pin.
+53. **Symbol editor: a pin or shape drag is unaffected — check immediately after 51.** Drag a pin,
+    then a body shape → both behave exactly as before, aligning to pins and shapes and never to a
+    field's glyph box. Pin drags must still keep their exact landings (guides do not outrank the
+    pin's own anchor). Anything different means `m_textMode` is leaking out of a text drag.
+54. **Symbol editor: free text aligns too.** Place → Text inside a symbol, then drag it → it lines
+    up with fields, pins and the body outline, and centres in the body. Pin *names* and pin
+    *numbers* must stay unaligned — they are glyphs the pin draws, not items you can grab.
+55. **Known limitation, do not report.** Hidden fields get no guides in the symbol editor. That
+    editor draws them greyed rather than hiding them, so Footprint and Datasheet are visible on
+    screen and still unaligned. Everything else about them behaves normally.
 
 ---
 
