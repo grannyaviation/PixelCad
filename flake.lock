@@ -3,11 +3,11 @@
     "kicad-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1785267695,
-        "narHash": "sha256-MbYWNV0Ba3zgUfu3pAIfYB7FqZfGzITVrhJGHvGI5FE=",
+        "lastModified": 1789049496,
+        "narHash": "sha256-MwYG5IweyOOFjAdf6LrDRN7hD7S7gl84qQKZ+xPD2F0=",
         "owner": "grannyaviation",
         "repo": "kicad",
-        "rev": "024c60571983b9c0e16c925428488843eef842ec",
+        "rev": "ca8fcb3fa1ea6e5f7e4eb5745623708cf9ec7c7a",
         "type": "github"
       },
       "original": {
