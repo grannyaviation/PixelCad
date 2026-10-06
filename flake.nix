@@ -73,6 +73,10 @@
         # preprocessor-mode fallback still hits for every file that does not
         # expand KICAD_DATA.  Without a writable cache directory the wrapper
         # compiles uncached instead of failing.
+        #
+        # Precompiled headers are off: with GCC, ccache counts every object built
+        # against a CMake PCH as uncacheable (73 % of the calls in the first
+        # build), so a cold build gets slower but a rebuild hits nearly everything.
         pixelcad-ccache =
           let
             ccacheStdenv = pkgs.ccacheStdenv.override {
@@ -87,7 +91,11 @@
             };
           in
           pixelcad.override {
-            callPackage = fn: args: pkgs.callPackage fn ({ stdenv = ccacheStdenv; } // args);
+            callPackage =
+              fn: args:
+              (pkgs.callPackage fn ({ stdenv = ccacheStdenv; } // args)).overrideAttrs (old: {
+                cmakeFlags = old.cmakeFlags ++ [ "-DKICAD_USE_PCH=OFF" ];
+              });
           };
       });
 
