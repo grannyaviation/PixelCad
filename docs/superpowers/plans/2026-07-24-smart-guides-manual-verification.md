@@ -28,6 +28,17 @@ nix develop -c ./build/pcbnew/pcbnew kicad/demos/cm5_minima/CM5_MINIMA_3.kicad_p
 7. **No regression.** Pads, tracks and vias still snap exactly as before — item
    anchors must beat guides.
 
+### Pin-line guides (2026-10-06)
+
+- [ ] On B.Cu with a 0.1 mm grid on, drag a vertical 0603 capacitor toward a connector pin whose
+      centre is off the grid (e.g. sensor `J13` pin 4, x 165.65). It snaps so its centre (both pads)
+      sits on the pin's X line, at the off-grid coordinate.
+- [ ] A red line runs from the pin's pad centre to the capacitor's centre.
+- [ ] A horizontal capacitor snaps one pad onto the pin line.
+- [ ] Holding Shift: no pin-line snap, no line.
+- [ ] Rotate the capacitor mid-drag (R): the snap follows the rotated pads.
+- [ ] Edge guides between two parts still respect the grid (no off-grid edge snap).
+
 ## Bugs the code review predicted — worth targeting
 
 8. **Alignment accuracy.** The guide must land on the **drawn** courtyard edge, not a
