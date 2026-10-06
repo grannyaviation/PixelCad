@@ -58,6 +58,37 @@
         pixelcad = pkgs.kicad-unstable.override {
           srcs.kicad = kicad-src;
         };
+
+        # pixelcad compiled through ccache, so a rebuild after a small fork change
+        # reuses every unchanged object.  For hosts that share a cache directory
+        # with their Nix builds (NixOS: programs.ccache.enable, plus
+        # nix.settings.extra-sandbox-paths = [ "/var/cache/ccache" ]).
+        #
+        # Only kicad.base compiles anything, and package.nix builds it with its
+        # callPackage argument rather than its own stdenv, so .override { stdenv }
+        # (what programs.ccache.packageNames does) would never reach the compiler.
+        #
+        # config.h carries the $out-dependent install path and nearly every object
+        # includes it, so direct-mode lookups miss after each change; ccache's
+        # preprocessor-mode fallback still hits for every file that does not
+        # expand KICAD_DATA.  Without a writable cache directory the wrapper
+        # compiles uncached instead of failing.
+        pixelcad-ccache =
+          let
+            ccacheStdenv = pkgs.ccacheStdenv.override {
+              extraConfig = ''
+                export CCACHE_DIR=/var/cache/ccache
+                export CCACHE_COMPRESS=1
+                export CCACHE_UMASK=007
+                export CCACHE_SLOPPINESS=random_seed
+                export CCACHE_MAXSIZE=10G
+                [ -w "$CCACHE_DIR" ] || export CCACHE_DISABLE=1
+              '';
+            };
+          in
+          pixelcad.override {
+            callPackage = fn: args: pkgs.callPackage fn ({ stdenv = ccacheStdenv; } // args);
+          };
       });
 
       devShells = forSystems (pkgs:
