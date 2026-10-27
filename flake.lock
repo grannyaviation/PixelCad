@@ -5,16 +5,17 @@
       "locked": {
         "lastModified": 1791982575,
         "narHash": "sha256-dCpXf9jI2u0gzGmCg2G5Bi7m8WAxKzswwBaTF4YVzG4=",
-        "owner": "grannyaviation",
-        "repo": "kicad",
+        "ref": "feature/smart-guides",
         "rev": "545e7f811e428a8ae841231d7e58b29da8403f67",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/grannyaviation/kicad"
       },
       "original": {
-        "owner": "grannyaviation",
         "ref": "feature/smart-guides",
-        "repo": "kicad",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "https://github.com/grannyaviation/kicad"
       }
     },
     "nixpkgs": {

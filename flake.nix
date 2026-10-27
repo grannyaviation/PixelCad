@@ -13,7 +13,7 @@
     # build cannot see it through self.  The installed package therefore tracks
     # the pushed commit, never the working tree.
     kicad-src = {
-      url = "github:grannyaviation/kicad/feature/smart-guides";
+      url = "git+https://github.com/grannyaviation/kicad?ref=feature/smart-guides&shallow=1";
       flake = false;
     };
   };
