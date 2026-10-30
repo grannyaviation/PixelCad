@@ -3,10 +3,10 @@
     "kicad-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1791982575,
-        "narHash": "sha256-dCpXf9jI2u0gzGmCg2G5Bi7m8WAxKzswwBaTF4YVzG4=",
+        "lastModified": 1793315522,
+        "narHash": "sha256-Z7Jn5vE2m80da+FbLQ5p6pU5rydRlc5ZwQYskaRH4kM=",
         "ref": "feature/smart-guides",
-        "rev": "545e7f811e428a8ae841231d7e58b29da8403f67",
+        "rev": "32f8fd0dadeff4f9f1d179d0a4ee1c54c676bb20",
         "shallow": true,
         "type": "git",
         "url": "https://github.com/grannyaviation/kicad"
